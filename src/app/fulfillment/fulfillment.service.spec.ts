@@ -84,8 +84,6 @@ describe('FulfillmentService', () => {
         expect(url).toEqual('/orders');
         expect(data.consumer).toEqual(consumer);
         expect(data.orderLineItems).toEqual([orderLineItem]);
-        expect(data.orderDate).toEqual(expect.anything());
-        expect(data.tenantOrderId).toEqual(expect.anything());
         expect(config).toEqual(headers);
         return of(response);
       });
