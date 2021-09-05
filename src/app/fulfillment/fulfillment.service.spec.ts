@@ -1,12 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { FulfillmentService } from './fulfillment.service';
-import { HttpModule, HttpService, NotFoundException } from '@nestjs/common';
-import { consumer, mockOrder, orderLineItem } from '../../data/mock-data';
+import { ConflictException, HttpModule, HttpService } from '@nestjs/common';
+import {
+  consumer,
+  mockOrder,
+  mockPickJob,
+  orderLineItem,
+} from '../../data/mock-data';
 import { ConfigModule } from '@nestjs/config';
 import { ZodError } from 'zod';
 import { Order, OrderSchema } from './models/order.model';
 import { of } from 'rxjs';
 import { AxiosResponse } from 'axios';
+import { PickJob, PickJobSchema, PickStatus } from './models/pick-job.model';
 
 describe('FulfillmentService', () => {
   let fulfillmentService: FulfillmentService;
@@ -58,8 +64,158 @@ describe('FulfillmentService', () => {
     const order: Order = await fulfillmentService.createOrder(
       [orderLineItem],
       consumer,
-      'accessToken',
+      'authToken',
     );
     expect(OrderSchema.parse(order)).toEqual(order);
+  });
+
+  it('should return valid patched pickjob', async () => {
+    const newMockPickJob: PickJob = {
+      ...mockPickJob,
+      version: 2,
+      status: PickStatus.enum.IN_PROGRESS,
+    };
+    const response: AxiosResponse<PickJob> = {
+      data: newMockPickJob,
+      headers: {},
+      config: { url: 'http://localhost:3000/mockUrl' },
+      status: 200,
+      statusText: 'OK',
+    };
+
+    jest.spyOn(httpService, 'patch').mockImplementationOnce(() => of(response));
+    const pickJob: PickJob = await fulfillmentService.setPickJobInProgress(
+      mockPickJob.id,
+      mockPickJob.version,
+      'authToken',
+    );
+    expect(PickJobSchema.parse(pickJob)).toEqual(pickJob);
+  });
+
+  it('should throw error if version is not incremented on setPickJobInProgress', async () => {
+    const newMockPickJob: PickJob = {
+      ...mockPickJob,
+      version: 3,
+      status: PickStatus.enum.IN_PROGRESS,
+    };
+    const response: AxiosResponse<PickJob> = {
+      data: newMockPickJob,
+      headers: {},
+      config: { url: 'http://localhost:3000/mockUrl' },
+      status: 200,
+      statusText: 'OK',
+    };
+
+    jest.spyOn(httpService, 'patch').mockImplementationOnce(() => of(response));
+    await expect(
+      fulfillmentService.setPickJobInProgress(
+        mockPickJob.id,
+        mockPickJob.version,
+        'authToken',
+      ),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('should throw error if state is not IN_PROGRESS after setPickJobInProgress', async () => {
+    const newMockPickJob: PickJob = { ...mockPickJob, version: 2 };
+    const response: AxiosResponse<PickJob> = {
+      data: newMockPickJob,
+      headers: {},
+      config: { url: 'http://localhost:3000/mockUrl' },
+      status: 200,
+      statusText: 'OK',
+    };
+
+    jest.spyOn(httpService, 'patch').mockImplementationOnce(() => of(response));
+    await expect(
+      fulfillmentService.setPickJobInProgress(
+        mockPickJob.id,
+        mockPickJob.version,
+        'authToken',
+      ),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('should return valid closed pickjob', async () => {
+    const newMockPickJob: PickJob = {
+      ...mockPickJob,
+      version: 2,
+      status: PickStatus.enum.CLOSED,
+      pickLineItems: [
+        {
+          ...mockPickJob.pickLineItems[0],
+          picked: mockPickJob.pickLineItems[0].quantity,
+          status: PickStatus.enum.CLOSED,
+        },
+      ],
+    };
+    const response: AxiosResponse<PickJob> = {
+      data: newMockPickJob,
+      headers: {},
+      config: { url: 'http://localhost:3000/mockUrl' },
+      status: 200,
+      statusText: 'OK',
+    };
+
+    jest.spyOn(httpService, 'patch').mockImplementationOnce(() => of(response));
+    const pickJob: PickJob = await fulfillmentService.pickPerfectAndClosePickJob(
+      mockPickJob,
+      'authToken',
+    );
+    expect(PickJobSchema.parse(pickJob)).toEqual(pickJob);
+  });
+
+  it('should throw error if version is not incremented on pickPerfectAndClosePickJob', async () => {
+    const newMockPickJob: PickJob = {
+      ...mockPickJob,
+      version: 3,
+      status: PickStatus.enum.CLOSED,
+      pickLineItems: [
+        {
+          ...mockPickJob.pickLineItems[0],
+          picked: mockPickJob.pickLineItems[0].quantity,
+          status: PickStatus.enum.CLOSED,
+        },
+      ],
+    };
+    const response: AxiosResponse<PickJob> = {
+      data: newMockPickJob,
+      headers: {},
+      config: { url: 'http://localhost:3000/mockUrl' },
+      status: 200,
+      statusText: 'OK',
+    };
+
+    jest.spyOn(httpService, 'patch').mockImplementationOnce(() => of(response));
+    await expect(
+      fulfillmentService.pickPerfectAndClosePickJob(mockPickJob, 'authToken'),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('should throw error if state of any PickItem is not CLOSED after pickPerfectAndClosePickJob', async () => {
+    const newMockPickJob: PickJob = {
+      ...mockPickJob,
+      version: 3,
+      status: PickStatus.enum.CLOSED,
+      pickLineItems: [
+        {
+          ...mockPickJob.pickLineItems[0],
+          picked: mockPickJob.pickLineItems[0].quantity,
+          status: PickStatus.enum.IN_PROGRESS,
+        },
+      ],
+    };
+    const response: AxiosResponse<PickJob> = {
+      data: newMockPickJob,
+      headers: {},
+      config: { url: 'http://localhost:3000/mockUrl' },
+      status: 200,
+      statusText: 'OK',
+    };
+
+    jest.spyOn(httpService, 'patch').mockImplementationOnce(() => of(response));
+    await expect(
+      fulfillmentService.pickPerfectAndClosePickJob(mockPickJob, 'authToken'),
+    ).rejects.toThrow(ConflictException);
   });
 });

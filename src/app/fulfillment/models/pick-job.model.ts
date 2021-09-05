@@ -64,5 +64,44 @@ export const StrippedPickJobsSchema = z.object({
   pickjobs: StrippedPickJobSchema.array(),
 });
 
+export const ModificationAction = z.enum([
+  'ModifyPickJob',
+  'ModifyPickLineItem',
+]);
+
+const AbstractModificationActionSchema = z.object({
+  action: ModificationAction,
+});
+
+export const ModifyPickJobActionSchema = AbstractModificationActionSchema.extend(
+  {
+    status: PickStatus,
+  },
+);
+
+export const ModifyPickLineItemActionSchema = AbstractModificationActionSchema.extend(
+  {
+    id: z.string(),
+    picked: z.number().nonnegative(),
+    status: PickStatus,
+    //  substituteLineItems
+  },
+);
+
+export const PickingModificationActions = z.union([
+  ModifyPickLineItemActionSchema,
+  ModifyPickJobActionSchema,
+]);
+
+export const PickingPatchActionsSchema = z.object({
+  version: z.number().nonnegative(),
+  actions: PickingModificationActions.array().nonempty(),
+});
+
+export type PickingPatchActions = z.TypeOf<typeof PickingPatchActionsSchema>;
 export type PickJob = z.TypeOf<typeof PickJobSchema>;
+export type PickLineItem = z.TypeOf<typeof PickLineItemSchema>;
+export type PickJobDeliveryInformation = z.TypeOf<
+  typeof PickJobDeliveryInformationSchema
+>;
 export type StrippedPickJobs = z.TypeOf<typeof StrippedPickJobsSchema>;
