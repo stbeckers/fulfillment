@@ -9,10 +9,27 @@ import {
 } from '../../data/mock-data';
 import { ConfigModule } from '@nestjs/config';
 import { ZodError } from 'zod';
-import { Order, OrderSchema } from './models/order.model';
+import {
+  Order,
+  OrderForCreation,
+  OrderForCreationSchema,
+  OrderSchema,
+} from './models/order.model';
 import { of } from 'rxjs';
-import { AxiosResponse } from 'axios';
-import { PickJob, PickJobSchema, PickStatus } from './models/pick-job.model';
+import { AxiosRequestConfig, AxiosResponse } from 'axios';
+import {
+  ModificationAction,
+  PickingPatchActionsSchema,
+  PickJob,
+  PickJobSchema,
+  PickStatus,
+} from './models/pick-job.model';
+
+const headers: AxiosRequestConfig = {
+  headers: {
+    Authorization: 'Bearer authToken',
+  },
+};
 
 describe('FulfillmentService', () => {
   let fulfillmentService: FulfillmentService;
@@ -60,12 +77,24 @@ describe('FulfillmentService', () => {
       statusText: 'OK',
     };
 
-    jest.spyOn(httpService, 'post').mockImplementationOnce(() => of(response));
+    jest
+      .spyOn(httpService, 'post')
+      .mockImplementationOnce((url, data: OrderForCreation, config) => {
+        expect(OrderForCreationSchema.parse(data)).toEqual(data);
+        expect(url).toEqual('/orders');
+        expect(data.consumer).toEqual(consumer);
+        expect(data.orderLineItems).toEqual([orderLineItem]);
+        expect(data.orderDate).toEqual(expect.anything());
+        expect(data.tenantOrderId).toEqual(expect.anything());
+        expect(config).toEqual(headers);
+        return of(response);
+      });
     const order: Order = await fulfillmentService.createOrder(
       [orderLineItem],
       consumer,
       'authToken',
     );
+
     expect(OrderSchema.parse(order)).toEqual(order);
   });
 
@@ -84,10 +113,24 @@ describe('FulfillmentService', () => {
     };
 
     jest.spyOn(httpService, 'patch').mockImplementationOnce(() => of(response));
+
     const pickJob: PickJob = await fulfillmentService.setPickJobInProgress(
       mockPickJob.id,
       mockPickJob.version,
       'authToken',
+    );
+    expect(httpService.patch).toBeCalledWith(
+      `/pickjobs/${mockPickJob.id}`,
+      PickingPatchActionsSchema.parse({
+        version: mockPickJob.version,
+        actions: [
+          {
+            action: ModificationAction.enum.ModifyPickJob,
+            status: PickStatus.enum.IN_PROGRESS,
+          },
+        ],
+      }),
+      headers,
     );
     expect(PickJobSchema.parse(pickJob)).toEqual(pickJob);
   });
@@ -161,6 +204,25 @@ describe('FulfillmentService', () => {
     const pickJob: PickJob = await fulfillmentService.pickPerfectAndClosePickJob(
       mockPickJob,
       'authToken',
+    );
+    expect(httpService.patch).toBeCalledWith(
+      `/pickjobs/${mockPickJob.id}`,
+      PickingPatchActionsSchema.parse({
+        version: mockPickJob.version,
+        actions: [
+          {
+            action: ModificationAction.enum.ModifyPickJob,
+            status: PickStatus.enum.CLOSED,
+          },
+          {
+            action: ModificationAction.enum.ModifyPickLineItem,
+            id: mockPickJob.pickLineItems[0].id,
+            picked: mockPickJob.pickLineItems[0].quantity,
+            status: PickStatus.enum.CLOSED,
+          },
+        ],
+      }),
+      headers,
     );
     expect(PickJobSchema.parse(pickJob)).toEqual(pickJob);
   });
