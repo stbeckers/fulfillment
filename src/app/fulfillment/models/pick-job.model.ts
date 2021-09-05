@@ -44,8 +44,8 @@ export const PickJobSchema = StrippedPickJobSchema.extend({
   tenantOrderId: z.string().optional(),
   facilityRef: z.string(),
 
-  pickLineItems: PickLineItemSchema.array(),
-  deliveryInformation: PickJobDeliveryInformationSchema,
+  pickLineItems: PickLineItemSchema.array().nonempty(),
+  deliveryinformation: PickJobDeliveryInformationSchema,
   customAttributes: CustomAttributesSchema.optional(),
   created: z
     .string()
