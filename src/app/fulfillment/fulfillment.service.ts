@@ -86,6 +86,7 @@ export class FulfillmentService {
         actions: [inProgressAction],
       },
     );
+
     const response = await this.httpService
       .patch(
         `${this.API_URL}/pickjobs/${pickJobId}`,
@@ -94,11 +95,13 @@ export class FulfillmentService {
       )
       .toPromise();
     const patchedPickJob: PickJob = PickJobSchema.parse(response.data);
+
     this.validateNewPickJob(
       currentVersion,
       PickStatus.enum.IN_PROGRESS,
       patchedPickJob,
     );
+
     return patchedPickJob;
   }
 
@@ -124,6 +127,7 @@ export class FulfillmentService {
         actions: [closeAction, ...modifyLineItemsActions],
       },
     );
+
     const response = await this.httpService
       .patch(
         `${this.API_URL}/pickjobs/${pickJob.id}`,
@@ -132,11 +136,13 @@ export class FulfillmentService {
       )
       .toPromise();
     const patchedPickJob: PickJob = PickJobSchema.parse(response.data);
+
     this.validateNewPickJob(
       pickJob.version,
       PickStatus.enum.CLOSED,
       patchedPickJob,
     );
+
     return patchedPickJob;
   }
 

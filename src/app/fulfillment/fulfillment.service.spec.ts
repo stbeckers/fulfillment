@@ -199,10 +199,12 @@ describe('FulfillmentService', () => {
     };
 
     jest.spyOn(httpService, 'patch').mockImplementationOnce(() => of(response));
+
     const pickJob: PickJob = await fulfillmentService.pickPerfectAndClosePickJob(
       mockPickJob,
       'authToken',
     );
+
     expect(httpService.patch).toBeCalledWith(
       `/pickjobs/${mockPickJob.id}`,
       PickingPatchActionsSchema.parse({
@@ -274,6 +276,7 @@ describe('FulfillmentService', () => {
     };
 
     jest.spyOn(httpService, 'patch').mockImplementationOnce(() => of(response));
+
     await expect(
       fulfillmentService.pickPerfectAndClosePickJob(mockPickJob, 'authToken'),
     ).rejects.toThrow(ConflictException);
